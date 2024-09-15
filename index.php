@@ -1,41 +1,80 @@
-<?php
+<?php 
 /**
- * author: Jeorlie Edang
- * project: textbox.top
+ * 
+ * 
  */
-define('ENGINE', true);
-$curDir = __dir__ .'/';
-require $curDir .'conf.php';
-require $curDir .'routes.php';
-require $curDir .'functions.php';
 
-$_get_request_uri = parse_url($_SERVER['REQUEST_URI']);
-$_parse_url = explode('/', ltrim($_get_request_uri['path'], '/'));
-$_routes = application_routes();
-if(empty($_parse_url[0]) && strlen($_parse_url[0]) == 0) {
-    $_parse_url[0] = 'index';
+if(!defined('APP_ENGINE')) die('Incorrect rewrite base. Root must be public');
+define('APP_ROOT_DIRECTORY', __dir__);
+
+$sys_dir = APP_ROOT_DIRECTORY .'/system';
+$dependencies = [
+    'functions',
+    'database',
+    'config',
+    'routes'
+];
+
+$parse = parse_url($_SERVER['REQUEST_URI']);
+$url  = rtrim(ltrim($parse['path'], '/'), '/');
+$url_segment = explode('/', $url);
+
+foreach($dependencies as $dep){
+    require $sys_dir . '/'. $dep .'.php';
 }
 
-if(!in_array($_parse_url[0], $_routes)) {
-    header('Location: /', true, 301);
-    exit;
-}
 
-
-
-$parentFolder = APP_MODULE_DIR . $_parse_url[0];
-$moduleFile = $parentFolder . '/index.php';
-
-if(isset($_parse_url[1])) {
-    if(!empty($_parse_url[1]) && strlen($_parse_url[1]) > 0) {
-        $moduleFile =$parentFolder . '/'. $_parse_url[1].'.php';
+// autoload helper if directory found
+$helper_dir = APP_DIR . '/helpers';
+if(is_dir($helper_dir)) {
+    $scandHelpers = array_slice(scandir($helper_dir), 2);
+    if(!empty($scandHelpers)){
+        foreach($scandHelpers as $helper){
+            $ext = substr($helper, -4);
+            if($ext == '.php') require $scandHelpers .'/'. $helper;
+        }
     }
 }
-if(file_exists($moduleFile)){
-    require $moduleFile;
+
+// autoload model if directory found
+$models_dir = APP_DIR . '/models';
+if(is_dir($models_dir)) {
+    $scandModels = array_slice(scandir($models_dir), 2);
+    if(!empty($scandModels)){
+        foreach($scandModels as $model){
+            $ext = substr($model, -4);
+            if($ext == '.php') require $models_dir .'/'. $model;
+        }
+    }
+}
+
+// $controller_dir = APP_DIR . '/controllers';
+// if(is_dir($controller_dir)) {
+//     $scandControllers = array_slice(scandir($controller_dir), 2);
+//     if(!empty($scandControllers)){
+//         foreach($scandControllers as $controller){
+//             $ext = substr($controller, -4);
+//             if($ext == '.php') require $controller_dir .'/'. $controller;
+//         }
+//     }
+// }
+
+
+if(func_is_empty($url)){
+    $url = 'index';
+}
+
+$routes = app_system_routes();
+$uri= explode('/', $url);
+func_set_globals('URL_SEGMENT', $uri);
+
+$file = APP_DIR . '/controllers'. '/'. $uri[0].'.php';
+
+if(file_exists($file)) {
+    require $file;
 } else {
-    func_web_error([
-        'title' => 'Page not found',
-        'message' => 'The page your are looking for cannot be found or does not exist.'
-    ]);
+   func_web_response([
+     'title' => 'Page not found',
+     'message' => 'The page your are looking for does not exists'
+   ]);
 }
